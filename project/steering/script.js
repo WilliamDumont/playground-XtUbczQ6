@@ -1,9 +1,3 @@
-
-//TODO: refactor magic numbers
-//TODO: optimise
-
-//LATER: implement the going further chapter (food etc)
-
 var PALETTES = [
 	[0xBAAB88, 0x237272, 0x518985, 0x4f5453, 0x43304F],
 	[0x6E6159, 0x66782C, 0x7F963B, 0xADBF45, 0xAFC57A],
@@ -25,17 +19,6 @@ var app = new PIXI.Application({
 });
 
 var OFF_SCREEN_BORDER = 60;
-var weights = {
-	maxForce: 0.05,
-	separation: 2,
-	alignment: 1.5,
-	cohesion: 0.5,
-	speed: 1,
-	periphery: Math.PI,
-	range: 50,
-	desiredSpeed: 6
-};
-var friction = 0.01;
 
 var boidLayer = new PIXI.Container();
 
@@ -118,26 +101,6 @@ Boid.prototype.getNeighbourhood = function (boids) {
 	return hood;
 };
 
-Boid.prototype.flock = function (boids, delta) {
-	// Find nearby boids
-	var hood = this.getNeighbourhood(boids);
-	// Calculate flocking forces
-	var sep = this.separation(hood);
-	var ali = this.alignment(hood);
-	var coh = this.cohesion(hood);
-	
-
-	// Apply weights to forces	
-	sep.multiplyScalar(weights.separation);
-	ali.multiplyScalar(weights.alignment);
-	coh.multiplyScalar(weights.cohesion);
-
-	// Apply forces to boid
-	this.acceleration.add(sep).add(ali).add(coh);
-	if (!this.acceleration.isZero()) {
-		this.acceleration.normalize().multiplyScalar(weights.maxForce);
-	}
-};
 
 Boid.prototype.update = function (delta) {
 	// Update velocity
@@ -151,8 +114,7 @@ Boid.prototype.update = function (delta) {
 	}
 
 	// Apply speed to position
-	var advance = this.velocity.clone().multiplyScalar(weights.speed);
-	this.position.add(advance);
+	this.position.add(this.velocity);
 
 	// Reset acceleration
 	this.acceleration.zero();
@@ -164,91 +126,17 @@ Boid.prototype.steer = function (desired) {
 	return steering;	
 };
 
-Boid.prototype.separation = function (hood) {
-	var desiredSeparation = this.radius * 2 + 5;
-
-	var average = new Victor(0, 0);
-	var count = 0;
-	// For every boid in the system, check if it's too close
-	for (var i = 0, l = hood.length; i < l; ++i) {
-		var neighbour = hood[i];
-		var other = neighbour.boid;
-		var d = neighbour.distance;
-		if (d < desiredSeparation && d > 0) {
-			// Calculate vector pointing away from neighbour, weighted by distance 
-			var diff = this.position.clone().subtract(other.position).normalize().divideScalar(d);
-			average.add(diff);
-
-			// Keep track of how many close boids
-			count++;
-		}
-	}
-	if (count > 0) {
-		//average.divideScalar(count);
-		/*
-		if (average.length() < desiredSeparation) {
-			//Get off me!			
-			average.normalize().multiplyScalar(weights.desiredSpeed);
-		}
-		*/
-		return this.steer(average.normalize().multiplyScalar(weights.desiredSpeed));
-	}
-	return average;
-};
-
-
-// Alignment
-// For every nearby boid in the system, calculate the average velocity
-Boid.prototype.alignment = function (hood) {
-	var average = new Victor(0, 0);
-	var count = 0;
-	for (var i = 0, l = hood.length; i < l; ++i) {
-		var neighbour = hood[i];
-		var other = neighbour.boid;
-		average.add(other.velocity);
-		count++;
-	}
-	if (count > 0 && !average.isZero()) {
-		//average.divideScalar(count);
-		return this.steer(average.normalize().multiplyScalar(weights.desiredSpeed));
-	}
-	return average;
-};
-
-// Cohesion
-// For the average position (i.e. center) of all nearby boids, calculate steering vector towards that position
-Boid.prototype.cohesion = function (hood) {
-	var average = new Victor(0, 0);	 // Start with empty vector to accumulate all positions
-	var count = 0;
-
-	for (var i = 0, l = hood.length; i < l; ++i) {
-		var neighbour = hood[i];
-		var other = neighbour.boid;
-		average.add(other.position); // Add position
-		count++;
-	}
-	if (count > 0) {
-		var destination = average.divideScalar(count).subtract(this.position);
-		var dist = destination.length();
-		if (dist > 0) {
-		    destination.normalize();
-		}
-		destination.multiplyScalar(weights.desiredSpeed);
-		return this.steer(destination);
-	}
-	return average;
-};
-
 Boid.prototype.render = function () {
 	var sprite = this.graphics;
 	sprite.x = this.position.x;
 	sprite.y = this.position.y;
     
-	sprite.rotation = lerpAngle(sprite.rotation, this.angle, 0.1);
+	// sprite.rotation = lerpAngle(sprite.rotation, this.angle, 0.1);
+	sprite.rotation = this.angle;
 };
 
 var boids = [];
-for (var i = 0; i < 100; ++i) {
+for (var i = 0; i < 1; ++i) {
 	boids.push(new Boid(Math.random() * app.screen.width, Math.random() * app.screen.height));
 }
 
@@ -269,9 +157,6 @@ function wrapAround(boid) {
 
 function updateBoids(delta) {
 	boids.forEach(function (boid) {
-		// Decide what to do by looking at other boids
-		boid.flock(boids);
-
 		// Move the boid
 		boid.update(delta);
 
