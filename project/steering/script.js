@@ -86,7 +86,7 @@ Boid.prototype.getNeighbourhood = function (boids) {
 	boids.forEach(function (boid) {
 		if (boid === self)
 			return;
-			
+
 		var distance = torusDistance(self.position, boid.position);
 		var angle = angleBetween(self.position, boid.position);
 		if (distance < range && angleDiff(angle, self.velocity.angle()) <= periphery) {
@@ -103,14 +103,15 @@ Boid.prototype.getNeighbourhood = function (boids) {
 
 
 Boid.prototype.update = function (delta) {
+	var friction = 0.01;
 	// Update velocity
 	this.velocity.add(this.acceleration);
 	// limitMagnitude(this.velocity, weights.desiredSpeed);
 	this.velocity.multiplyScalar(1 - friction);
 	if (this.velocity.length() < 1e-3) {
-        this.velocity.zero();
+		this.velocity.zero();
 	} else {
-        this.angle = this.velocity.angle();
+		this.angle = this.velocity.angle();
 	}
 
 	// Apply speed to position
@@ -121,16 +122,16 @@ Boid.prototype.update = function (delta) {
 };
 
 Boid.prototype.steer = function (desired) {
-    // Implement Reynolds: Steering = Desired - Velocity
+	// Implement Reynolds: Steering = Desired - Velocity
 	var steering = desired.subtract(this.velocity);
-	return steering;	
+	return steering;
 };
 
 Boid.prototype.render = function () {
 	var sprite = this.graphics;
 	sprite.x = this.position.x;
 	sprite.y = this.position.y;
-    
+
 	// sprite.rotation = lerpAngle(sprite.rotation, this.angle, 0.1);
 	sprite.rotation = this.angle;
 };
@@ -155,8 +156,17 @@ function wrapAround(boid) {
 	}
 }
 
+var target = new Victor().randomize(new Victor(0, 0), new Victor(app.screen.width, app.screen.height));
+
 function updateBoids(delta) {
 	boids.forEach(function (boid) {
+		
+		var desired = target.clone().subtract(boid.position);
+		if (!desired.isZero()) {
+			desired.normalize().multiplyScalar(desiredSpeed);
+		}
+		boid.acceleration = boid.steer(desired);
+
 		// Move the boid
 		boid.update(delta);
 
@@ -165,6 +175,10 @@ function updateBoids(delta) {
 
 		// Render
 		boid.render();
+
+		if (torusDistance(target, boid.position) < 5) {
+			target = new Victor().randomize(new Victor(0, 0), new Victor(app.screen.width, app.screen.height));
+		}
 	});
 }
 
