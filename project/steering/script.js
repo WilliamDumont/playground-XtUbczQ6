@@ -21,7 +21,19 @@ var app = new PIXI.Application({
 var OFF_SCREEN_BORDER = 60;
 
 var boidLayer = new PIXI.Container();
+var targetLayer = new PIXI.Container();
 
+var targetGraphics = new PIXI.Graphics();
+targetGraphics.lineStyle(2, palette[4]);
+targetGraphics.drawCircle(0,0,5);
+targetGraphics.moveTo(0,-10);
+targetGraphics.lineTo(0,+10);
+targetGraphics.moveTo(-10, 0);
+targetGraphics.lineTo(+10, 0);
+targetLayer.addChild(targetGraphics);
+
+
+app.stage.addChild(targetLayer);
 app.stage.addChild(boidLayer);
 
 function lerpAngle(start, end, amount, maxDelta) {
@@ -76,70 +88,85 @@ function Boid(x, y) {
 	this.velocity = new Victor(0, 0);
 	this.acceleration = new Victor(0, 0);
 	this.angle = Math.random() * Math.PI * 2;
+	this.label = new PIXI.Text('You',{fontFamily : 'Arial', fontSize: 24, fill : palette[4], align : 'center'});
+	this.graphics.addChild(this.label);
+	this.label.anchor.x = 0.5;
+	this.label.anchor.y = 1.2;
 }
 
-Boid.prototype.getNeighbourhood = function (boids) {
-	var range = weights.range;
-	var periphery = weights.periphery;
-	var hood = [];
-	var self = this;
-	boids.forEach(function (boid) {
-		if (boid === self)
-			return;
+function MyBoid(x, y) {
+	this.radius = 10;
+	this.graphics = createBoidGraphics(this.radius);
+	this.position = new Victor(x, y);
+	this.velocity = new Victor(0, 0);
+	this.acceleration = new Victor(0, 0);
+	this.angle = Math.random() * Math.PI * 2;
+	this.label = new PIXI.Text('Sample',{fontFamily : 'Arial', fontSize: 24, fill : palette[4], align : 'center'});
+	this.graphics.addChild(this.label);
+	this.label.anchor.x = 0.5;
+	this.label.anchor.y = 1.2;
+}
 
-		var distance = torusDistance(self.position, boid.position);
-		var angle = angleBetween(self.position, boid.position);
-		if (distance < range && angleDiff(angle, self.velocity.angle()) <= periphery) {
-			hood.push({
-				boid: boid,
-				distance: distance,
-				angle: angle
-			});
-		}
-	});
 
-	return hood;
+MyBoid.prototype.update = function() {
+	// Limit acceleration force (smaller values make for wider turns)
+	var maxForce = 0.05;
+	if (this.acceleration.length() > maxForce) {
+		this.acceleration.normalize().multiplyScalar(maxForce);
+	}
+
+	// Update velocity
+	this.velocity.add(this.acceleration);
+
+	// Apply velocity to position
+	this.position.add(this.velocity);
+
+	// Reset acceleration
+	this.acceleration.zero();
+
+	// Apply friction
+	this.velocity.multiplyScalar(1 - 0.01);
 };
 
 
-Boid.prototype.update = function (delta) {
-	var friction = 0.01;
-	// Update velocity
-	this.velocity.add(this.acceleration);
-	// limitMagnitude(this.velocity, weights.desiredSpeed);
-	this.velocity.multiplyScalar(1 - friction);
+Boid.prototype.update = function() {};
+Boid.prototype.steer = function() {
+	return new Victor(0,0);
+};
+
+MyBoid.prototype.steer = function(desired) {
+	return desired.subtract(this.velocity);
+};
+
+Boid.prototype.update2 = function (delta) {
 	if (this.velocity.length() < 1e-3) {
 		this.velocity.zero();
 	} else {
 		this.angle = this.velocity.angle();
 	}
-
-	// Apply speed to position
-	this.position.add(this.velocity);
-
-	// Reset acceleration
-	this.acceleration.zero();
 };
-
-Boid.prototype.steer = function (desired) {
-	// Implement Reynolds: Steering = Desired - Velocity
-	var steering = desired.subtract(this.velocity);
-	return steering;
-};
-
+MyBoid.prototype.update2 = Boid.prototype.update2;
 Boid.prototype.render = function () {
 	var sprite = this.graphics;
 	sprite.x = this.position.x;
 	sprite.y = this.position.y;
-
-	// sprite.rotation = lerpAngle(sprite.rotation, this.angle, 0.1);
 	sprite.rotation = this.angle;
+	this.label.rotation = -this.angle;	
+};
+
+MyBoid.prototype.render = function () {
+	var sprite = this.graphics;
+	sprite.x = this.position.x;
+	sprite.y = this.position.y;
+	sprite.rotation = this.angle;
+	this.label.rotation = -this.angle;
 };
 
 var boids = [];
-for (var i = 0; i < 1; ++i) {
-	boids.push(new Boid(Math.random() * app.screen.width, Math.random() * app.screen.height));
-}
+//for (var i = 0; i < 1; ++i) {
+boids.push(new Boid(Math.random() * app.screen.width, Math.random() * app.screen.height));
+boids.push(new MyBoid(Math.random() * app.screen.width, Math.random() * app.screen.height));
+//}
 
 function wrapAround(boid) {
 	if (boid.position.x < -OFF_SCREEN_BORDER) {
@@ -155,20 +182,23 @@ function wrapAround(boid) {
 		boid.position.y -= OFF_SCREEN_BORDER + app.screen.height;
 	}
 }
-
-var target = new Victor().randomize(new Victor(0, 0), new Victor(app.screen.width, app.screen.height));
+var pad = 200;
+var target = new Victor().randomize(new Victor(pad, pad), new Victor(app.screen.width-pad, app.screen.height-pad));
+targetGraphics.x = target.x;
+targetGraphics.y = target.y;
 
 function updateBoids(delta) {
 	boids.forEach(function (boid) {
 		
 		var desired = target.clone().subtract(boid.position);
 		if (!desired.isZero()) {
-			desired.normalize().multiplyScalar(desiredSpeed);
+			desired.normalize().multiplyScalar(6);
 		}
 		boid.acceleration = boid.steer(desired);
 
 		// Move the boid
 		boid.update(delta);
+		boid.update2(delta);
 
 		// Wrap around the screen
 		wrapAround(boid);
@@ -176,8 +206,16 @@ function updateBoids(delta) {
 		// Render
 		boid.render();
 
-		if (torusDistance(target, boid.position) < 5) {
-			target = new Victor().randomize(new Victor(0, 0), new Victor(app.screen.width, app.screen.height));
+		while (torusDistance(target, boid.position) < 5) {
+			var ang = 0;
+			while( 2.7 < ang || ang < 0.01) {
+				target = new Victor().randomize(new Victor(pad, pad), new Victor(app.screen.width-pad, app.screen.height-pad));
+				ang = angleDiff(boid.velocity.angle(), angleBetween(boid.position, target));
+			}
+			
+			
+			targetGraphics.x = target.x;
+			targetGraphics.y = target.y;
 		}
 	});
 }

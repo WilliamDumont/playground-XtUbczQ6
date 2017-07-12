@@ -1,9 +1,16 @@
+Boid.prototype.steer = function(desired) {
+	//TODO !
+	return new Victor(0, 0);
+};
+
 function getFriction() {
-	return 0.1;
+	//TODO !
+	return 0.5;
 }
 
 function getMaxForce() {
-	return 0.05;
+    //TODO !
+	return 0;
 }
 
 Boid.prototype.update = function() {
@@ -21,14 +28,11 @@ Boid.prototype.update = function() {
 
 	// Apply friction
 	this.velocity.multiplyScalar(1 - getFriction());
-}
-
-Boid.prototype.steer = function(desired) {
-	return desired.subtract(this.velocity);
-}
+};
 
 function limitForce(vector) {
 	var maxForce = getMaxForce();
+	// Limit the vector to a certain length.
 	if (vector.length() > maxForce) {
 		vector.normalize().multiplyScalar(maxForce);
 	}
